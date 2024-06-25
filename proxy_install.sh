@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -e  # Exit immediately if a command exits with a non-zero status.
+
+log() {
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] $1"
+}
+
 # Function to generate a random string
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
@@ -17,11 +23,11 @@ gen64() {
 
 # Function to install 3proxy
 install_3proxy() {
-    echo "Installing 3proxy"
+    log "Installing 3proxy"
     URL="https://github.com/z3APA3A/3proxy/archive/refs/tags/0.8.6.tar.gz"
-    wget -qO- $URL | tar -zxvf- || { echo "3proxy download or extraction failed"; exit 1; }
-    cd 3proxy-0.8.6 || { echo "3proxy directory not found"; exit 1; }
-    make -f Makefile.Linux || { echo "Make failed"; exit 1; }
+    wget -qO- $URL | tar -zxvf- || { log "3proxy download or extraction failed"; exit 1; }
+    cd 3proxy-0.8.6 || { log "3proxy directory not found"; exit 1; }
+    make -f Makefile.Linux || { log "Make failed"; exit 1; }
     mkdir -p /usr/local/etc/3proxy/{bin,logs,stat}
     cp src/3proxy /usr/local/etc/3proxy/bin/
     cp ./scripts/rc.d/proxy.sh /etc/init.d/3proxy
@@ -61,8 +67,8 @@ EOF
 # Function to upload proxy file to file.io
 upload_proxy() {
     RESPONSE=$(curl -F "file=@proxy.txt" https://file.io)
-    echo "Proxy is ready! Format IP:PORT:LOGIN:PASS"
-    echo "Download link: ${RESPONSE}"
+    log "Proxy is ready! Format IP:PORT:LOGIN:PASS"
+    log "Download link: ${RESPONSE}"
 }
 
 # Function to generate data
@@ -86,23 +92,23 @@ $(awk -F "/" '{print "ifconfig eth0 inet6 add " $5 "/64"}' ${WORKDATA})
 EOF
 }
 
-echo "Installing apps"
-yum -y install gcc net-tools bsdtar zip curl || { echo "Failed to install dependencies"; exit 1; }
+log "Installing required packages"
+yum -y install gcc net-tools bsdtar zip curl || { log "Failed to install dependencies"; exit 1; }
 
 # Variables
 WORKDIR="/home/proxy-installer"
 WORKDATA="${WORKDIR}/data.txt"
 
 # Ensure the working directory exists
-mkdir -p $WORKDIR || { echo "Failed to create working directory"; exit 1; }
-cd $WORKDIR || { echo "Failed to navigate to working directory"; exit 1; }
+mkdir -p $WORKDIR || { log "Failed to create working directory"; exit 1; }
+cd $WORKDIR || { log "Failed to navigate to working directory"; exit 1; }
 
 IP4=$(curl -4 -s icanhazip.com)
 IP6=$(curl -6 -s icanhazip.com | cut -f1-4 -d':')
 
-echo "Internal IP = ${IP4}. External sub for IP6 = ${IP6}"
+log "Internal IP = ${IP4}. External sub for IP6 = ${IP6}"
 
-echo "How many proxies do you want to create? Example: 500"
+log "How many proxies do you want to create? Example: 500"
 read -r COUNT
 
 FIRST_PORT=10000
