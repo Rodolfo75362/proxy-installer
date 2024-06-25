@@ -1,10 +1,12 @@
 #!/bin/bash
 
+# Function to generate a random string
 random() {
     tr </dev/urandom -dc A-Za-z0-9 | head -c5
     echo
 }
 
+# Function to generate an IPv6 address
 array=(1 2 3 4 5 6 7 8 9 0 a b c d e f)
 gen64() {
     ip64() {
@@ -13,12 +15,13 @@ gen64() {
     echo "$1:$(ip64):$(ip64):$(ip64):$(ip64)"
 }
 
+# Function to install 3proxy
 install_3proxy() {
-    echo "installing 3proxy"
-    URL="https://github.com/z3APA3A/3proxy/archive/3proxy-0.8.6.tar.gz"
-    wget -qO- $URL | bsdtar -xvf-
-    cd 3proxy-3proxy-0.8.6
-    make -f Makefile.Linux
+    echo "Installing 3proxy"
+    URL="https://github.com/z3APA3A/3proxy/archive/refs/tags/0.8.6.tar.gz"
+    wget -qO- $URL | tar -zxvf- || { echo "3proxy download or extraction failed"; exit 1; }
+    cd 3proxy-0.8.6 || { echo "3proxy directory not found"; exit 1; }
+    make -f Makefile.Linux || { echo "Make failed"; exit 1; }
     mkdir -p /usr/local/etc/3proxy/{bin,logs,stat}
     cp src/3proxy /usr/local/etc/3proxy/bin/
     cp ./scripts/rc.d/proxy.sh /etc/init.d/3proxy
@@ -27,6 +30,7 @@ install_3proxy() {
     cd $WORKDIR
 }
 
+# Function to generate 3proxy configuration
 gen_3proxy() {
     cat <<EOF
 daemon
@@ -47,30 +51,35 @@ $(awk -F "/" '{print "auth strong\n" \
 EOF
 }
 
+# Function to generate proxy file for user
 gen_proxy_file_for_user() {
     cat >proxy.txt <<EOF
 $(awk -F "/" '{print $3 ":" $4 ":" $1 ":" $2 }' ${WORKDATA})
 EOF
 }
 
+# Function to upload proxy file to file.io
 upload_proxy() {
     RESPONSE=$(curl -F "file=@proxy.txt" https://file.io)
     echo "Proxy is ready! Format IP:PORT:LOGIN:PASS"
     echo "Download link: ${RESPONSE}"
 }
 
+# Function to generate data
 gen_data() {
     seq $FIRST_PORT $LAST_PORT | while read -r port; do
         echo "usr$(random)/pass$(random)/$IP4/$port/$(gen64 $IP6)"
     done
 }
 
+# Function to generate iptables script
 gen_iptables() {
     cat <<EOF
 $(awk -F "/" '{print "iptables -I INPUT -p tcp --dport " $4 " -m state --state NEW -j ACCEPT"}' ${WORKDATA})
 EOF
 }
 
+# Function to generate ifconfig script
 gen_ifconfig() {
     cat <<EOF
 $(awk -F "/" '{print "ifconfig eth0 inet6 add " $5 "/64"}' ${WORKDATA})
@@ -78,14 +87,15 @@ EOF
 }
 
 echo "Installing apps"
-yum -y install gcc net-tools bsdtar zip curl >/dev/null
+yum -y install gcc net-tools bsdtar zip curl || { echo "Failed to install dependencies"; exit 1; }
 
-install_3proxy
-
-echo "Working folder = /home/proxy-installer"
+# Variables
 WORKDIR="/home/proxy-installer"
 WORKDATA="${WORKDIR}/data.txt"
-mkdir $WORKDIR && cd "$WORKDIR"
+
+# Ensure the working directory exists
+mkdir -p $WORKDIR || { echo "Failed to create working directory"; exit 1; }
+cd $WORKDIR || { echo "Failed to navigate to working directory"; exit 1; }
 
 IP4=$(curl -4 -s icanhazip.com)
 IP6=$(curl -6 -s icanhazip.com | cut -f1-4 -d':')
@@ -102,6 +112,8 @@ gen_data > "$WORKDIR/data.txt"
 gen_iptables > "$WORKDIR/boot_iptables.sh"
 gen_ifconfig > "$WORKDIR/boot_ifconfig.sh"
 chmod +x ${WORKDIR}/boot_*.sh /etc/rc.local
+
+install_3proxy
 
 gen_3proxy > /usr/local/etc/3proxy/3proxy.cfg
 
